@@ -1,0 +1,22 @@
+# Minimal example configuration — no real credentials.
+# Real network expansion is disabled by default.
+
+head_id: head-0
+target_nodes: 42
+seed: 42                    # deterministic simulation
+
+network_expansion_enabled: false
+require_explicit_authorization: true
+fail_closed_on_policy_error: true
+
+limits:
+  max_nodes: 42
+  max_connections: 128
+  max_concurrent_admissions: 8
+  max_expansion_per_second: 4.0
+  per_node_cpu_budget: 1.0
+  per_node_memory_mb: 64
+  recovery_max_attempts: 3
+  recovery_backoff_seconds: 1.0
+  shutdown_deadline_seconds: 30.0
+  lease_duration_seconds: 60.0
