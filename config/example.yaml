@@ -3,11 +3,12 @@
 
 head_id: head-0
 target_nodes: 42
-seed: 42                    # deterministic simulation
+seed: 42
 
 network_expansion_enabled: false
 require_explicit_authorization: true
 fail_closed_on_policy_error: true
+persistence_dir: null   # set to a path to enable file-backed snapshots
 
 limits:
   max_nodes: 42
@@ -20,3 +21,18 @@ limits:
   recovery_backoff_seconds: 1.0
   shutdown_deadline_seconds: 30.0
   lease_duration_seconds: 60.0
+  admission_timeout_seconds: 10.0
+  health_check_interval_seconds: 5.0
+  credential_ttl_seconds: 300.0
+  expansion_retry_limit: 3
+
+simulation:
+  seed: 42
+  duration_seconds: 60.0
+  target_nodes: 42
+
+audit:
+  retention_events: 10000
+  diagnostic_verbosity: normal
+  hash_link: true
+  policy_version: "1"
