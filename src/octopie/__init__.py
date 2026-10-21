@@ -24,6 +24,22 @@ from .contract import (
     NodeRevocation,
     CoordinationStatus,
 )
+from .naming import (
+    CAPABILITY_PUBLISH_SERVICE,
+    BindingStatus,
+    PublicationOutcome,
+    EndpointRef,
+    ServiceBinding,
+    ServicePublicationRequest,
+    ServicePublicationDecision,
+    ServiceBindingLookupRequest,
+    ServiceBindingLookupResult,
+    ServiceBindingRevocation,
+    InMemoryBindingStore,
+    NamingService,
+    canonicalize_service_name,
+    stable_service_id,
+)
 
 __all__ = [
     "Head", "HeadConfig", "LimitsConfig", "SimulationConfig", "AuditConfig",
@@ -36,5 +52,12 @@ __all__ = [
     "NodeObserved", "AdmissionRequested", "AdmissionDecision",
     "MembershipSnapshot", "CapabilityDecision", "NodeHealthObserved",
     "NodeRevocation", "CoordinationStatus",
+    # naming v0.1
+    "CAPABILITY_PUBLISH_SERVICE", "BindingStatus", "PublicationOutcome",
+    "EndpointRef", "ServiceBinding",
+    "ServicePublicationRequest", "ServicePublicationDecision",
+    "ServiceBindingLookupRequest", "ServiceBindingLookupResult",
+    "ServiceBindingRevocation", "InMemoryBindingStore", "NamingService",
+    "canonicalize_service_name", "stable_service_id",
     "__version__",
 ]
