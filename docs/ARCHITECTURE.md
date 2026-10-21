@@ -11,6 +11,7 @@ Octopie does **not**:
 - Propagate trust from one node to another
 - Run distributed consensus (single-head in this version)
 - Store private keys or live tokens in snapshots or logs
+- Act as a global DNS root or commercial name registrar
 
 ## Module responsibilities
 
@@ -30,6 +31,8 @@ Octopie does **not**:
 | `diagnostics` | Read-only explain-why reports |
 | `simulation` | Deterministic scenarios + SimulationSummary |
 | `adapters` | Optional inbound observation interfaces (Aurora / REA / CANtheon contracts) |
+| `contract` | Versioned Octopie↔Aurora messages (admission, membership, health) |
+| `naming` | Trust-gated service names, bindings, leases, revocation (v0.1) |
 | `head` | Orchestration, safe shutdown, outage behaviour |
 
 ## Trust states and legal transitions
@@ -43,6 +46,13 @@ DISCOVERED → AUTHENTICATED → AUTHORIZED → ADMITTED
 ```
 
 Invalid transitions are rejected by `NodeRecord.can_transition_to`.
+
+## Service naming (v0.1)
+
+Stable service identities are independent of network endpoints. Publication is
+authorized by the same identity and capability machinery as admission. See
+[SERVICE_NAMING.md](SERVICE_NAMING.md) and the naming messages in the Aurora
+contract document.
 
 ## Persistence and recovery
 
@@ -81,3 +91,4 @@ print(explain_rejection(head, "node-0001"))
 2. Multi-head authority transfer (interfaces reserved)
 3. Hardware-backed identity store
 4. Concrete Aurora / REA / CANtheon adapters once their contracts are stable
+5. Live Aurora resolution of authorized service bindings to routes
