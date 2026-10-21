@@ -43,6 +43,8 @@ class Head:
         self._running = True
         self._admissions_paused = False
         self._shutdown_started_at: Optional[float] = None
+        # Optional naming authority; attach via attach_naming() for cascade revoke.
+        self.naming = None  # type: ignore[assignment]
 
     def start(self) -> None:
         self._running = True
@@ -53,6 +55,8 @@ class Head:
     def pause_admissions(self, reason: str = "manual") -> None:
         self._admissions_paused = True
         self.admission.set_head_available(False)
+        if self.naming is not None:
+            self.naming.set_head_available(False)
         self.audit.record("admissions_paused", detail={"reason": reason})
 
     def resume_admissions(self) -> None:
@@ -66,6 +70,8 @@ class Head:
             return
         self._admissions_paused = False
         self.admission.set_head_available(True)
+        if self.naming is not None:
+            self.naming.set_head_available(True)
         self.audit.record("admissions_resumed")
 
     def simulate_head_loss(self) -> None:
@@ -98,10 +104,23 @@ class Head:
         self.topology.add_discovered(identity.node_id)
         self.audit.record("identity_authorized", node_id=identity.node_id)
 
+    def attach_naming(self, naming: "NamingService") -> None:
+        """Attach a NamingService so publisher revocation cascades to bindings."""
+        self.naming = naming
+        naming.set_head_available(self.is_available)
+
     def revoke(self, node_id: str) -> None:
         self.identity.revoke(node_id)
         self.topology.transition(node_id, NodeState.REVOKED, "revoked by head")
         self.arms.retire_node(node_id)
+        if self.naming is not None:
+            revs = self.naming.revoke_owner_bindings(node_id)
+            if revs:
+                self.audit.record(
+                    "service_bindings_revoked",
+                    node_id=node_id,
+                    detail={"count": len(revs)},
+                )
         self.audit.record("node_revoked", node_id=node_id)
 
     def request_admission(
