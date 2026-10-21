@@ -78,7 +78,6 @@ def test_stable_service_id_independent_of_endpoint():
 def test_unauthorized_publication_rejected():
     head = Head(HeadConfig(seed=2))
     naming = NamingService(head.identity)
-    # Register but do NOT authorize
     head.identity.register_identity(make_simulated_identity("ghost"))
     req = ServicePublicationRequest(
         service_name="svc.test", publisher_id="ghost",
@@ -128,7 +127,6 @@ def test_discovered_but_unverified_cannot_publish():
 
 def test_missing_capability_rejected_when_scoped():
     head = Head(HeadConfig(seed=6))
-    # Authorized but only "worker" capability — no publish_service
     identity = make_simulated_identity("pub-limited", capabilities={"worker"})
     head.register_and_authorize(identity)
     naming = NamingService(head.identity)
@@ -143,7 +141,6 @@ def test_missing_capability_rejected_when_scoped():
 
 def test_lookup_does_not_grant_publish():
     head, naming, token = _head_and_naming(7)
-    # Successful publish by authorized party
     pub = ServicePublicationRequest(
         service_name="svc.look", publisher_id="pub-1",
         endpoints=[_ep()], requested_at=1000.0, correlation_id="c1",
@@ -151,11 +148,8 @@ def test_lookup_does_not_grant_publish():
     d = naming.publish(pub, token=token, now=1000.0)
     assert d.outcome == PublicationOutcome.ACCEPTED
 
-    # Unrelated identity can look up but cannot publish under that name
     head.identity.register_identity(make_simulated_identity("other"))
     head.identity.authorize("other")
-    # Give other the capability so the only failure is ownership
-    # (we re-register with capability)
     head.identity._identities["other"] = make_simulated_identity(
         "other", capabilities={CAPABILITY_PUBLISH_SERVICE}
     )
@@ -224,14 +218,12 @@ def test_stale_version_cannot_overwrite():
         endpoints=[_ep()], requested_at=4000.0, correlation_id="v1",
     )
     naming.publish(r1, token=token, now=4000.0)
-    # Advance version
     r2 = ServicePublicationRequest(
         service_name="svc.ver", publisher_id="pub-1",
         endpoints=[_ep("ep2")], requested_at=4001.0,
         expected_version=1, correlation_id="v2",
     )
     naming.publish(r2, token=token, now=4001.0)
-    # Stale expected_version=1 must conflict
     r3 = ServicePublicationRequest(
         service_name="svc.ver", publisher_id="pub-1",
         endpoints=[_ep("ep3")], requested_at=4002.0,
@@ -251,7 +243,6 @@ def test_unauthorized_name_takeover_prevented():
         ),
         token=token, now=5000.0,
     )
-    # Second authorized publisher attempts takeover
     identity2 = make_simulated_identity("pub-2", capabilities={CAPABILITY_PUBLISH_SERVICE})
     head.register_and_authorize(identity2)
     d = naming.publish(
@@ -275,7 +266,6 @@ def test_revoked_name_not_silently_reassigned():
         token=token, now=6000.0,
     )
     naming.revoke("svc.rev", revoked_by="pub-1", now=6001.0)
-    # Even the original owner cannot silently re-claim in v0.1
     d = naming.publish(
         ServicePublicationRequest(
             service_name="svc.rev", publisher_id="pub-1",
@@ -339,7 +329,6 @@ def test_renewal_requires_authorization():
         ),
         token=token, now=9000.0,
     )
-    # Owner renews (idempotent path)
     d = naming.publish(
         ServicePublicationRequest(
             service_name="svc.ren", publisher_id="pub-1",
@@ -351,7 +340,6 @@ def test_renewal_requires_authorization():
     assert d.outcome in {PublicationOutcome.ACCEPTED, PublicationOutcome.IDEMPOTENT}
     assert d.binding.is_trusted_active(9010.0)
 
-    # Revoked publisher cannot renew
     head.identity.revoke("pub-1")
     d2 = naming.publish(
         ServicePublicationRequest(
@@ -484,7 +472,6 @@ def test_unreachable_endpoint_does_not_change_ownership():
         token=token, now=16000.0,
     )
     assert d.binding.owner_id == "pub-1"
-    # "Unreachable" is Aurora's concern; lookup still returns the binding
     look = naming.lookup(
         ServiceBindingLookupRequest(service_name="svc.reach", requested_at=16001.0),
         now=16001.0,
@@ -507,3 +494,79 @@ def test_existing_admission_path_unaffected():
 
 def test_contract_version_unchanged():
     assert CONTRACT_VERSION == "octopie-aurora/1.0"
+
+
+# ---------------------------------------------------------------------------
+# Head integration: cascade revoke + availability
+# ---------------------------------------------------------------------------
+
+def test_head_attach_naming_cascades_on_revoke():
+    head = Head(HeadConfig(seed=30))
+    identity = make_simulated_identity(
+        "pub-1", capabilities={CAPABILITY_PUBLISH_SERVICE, "worker"}
+    )
+    head.register_and_authorize(identity)
+    token = head.issue_token("pub-1")
+    naming = NamingService(head.identity)
+    head.attach_naming(naming)
+
+    d = naming.publish(
+        ServicePublicationRequest(
+            service_name="svc.head",
+            publisher_id="pub-1",
+            endpoints=[_ep()],
+            requested_at=20000.0,
+            correlation_id="h1",
+        ),
+        token=token,
+        now=20000.0,
+    )
+    assert d.outcome == PublicationOutcome.ACCEPTED
+
+    head.revoke("pub-1")
+    look = naming.lookup(
+        ServiceBindingLookupRequest(service_name="svc.head", requested_at=20001.0),
+        now=20001.0,
+    )
+    assert look.found is False
+    assert look.reason_code == "revoked"
+
+
+def test_head_pause_blocks_naming_publish():
+    head = Head(HeadConfig(seed=31))
+    identity = make_simulated_identity(
+        "pub-1", capabilities={CAPABILITY_PUBLISH_SERVICE}
+    )
+    head.register_and_authorize(identity)
+    token = head.issue_token("pub-1")
+    naming = NamingService(head.identity)
+    head.attach_naming(naming)
+
+    head.pause_admissions(reason="maintenance")
+    d = naming.publish(
+        ServicePublicationRequest(
+            service_name="svc.paused",
+            publisher_id="pub-1",
+            endpoints=[_ep()],
+            requested_at=21000.0,
+            correlation_id="p1",
+        ),
+        token=token,
+        now=21000.0,
+    )
+    assert d.outcome == PublicationOutcome.REJECTED
+    assert d.reason_code == "head_unavailable"
+
+    head.resume_admissions()
+    d2 = naming.publish(
+        ServicePublicationRequest(
+            service_name="svc.paused",
+            publisher_id="pub-1",
+            endpoints=[_ep()],
+            requested_at=21001.0,
+            correlation_id="p2",
+        ),
+        token=token,
+        now=21001.0,
+    )
+    assert d2.outcome == PublicationOutcome.ACCEPTED
