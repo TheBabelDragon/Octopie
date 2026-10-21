@@ -108,6 +108,20 @@ The suite verifies:
 
 All tests use deterministic fake identities; no real external nodes are required.
 
+## Service naming (v0.1)
+
+Stable, trust-gated service names independent of network endpoints. Publication is authorized by the same identity machinery as admission. See [docs/SERVICE_NAMING.md](docs/SERVICE_NAMING.md).
+
+```python
+from octopie import Head, HeadConfig, NamingService, EndpointRef, ServicePublicationRequest, CAPABILITY_PUBLISH_SERVICE
+from octopie.identity import make_simulated_identity
+
+head = Head(HeadConfig(seed=1))
+head.register_and_authorize(make_simulated_identity("pub", capabilities={CAPABILITY_PUBLISH_SERVICE}))
+naming = NamingService(head.identity)
+head.attach_naming(naming)  # optional: cascade revoke on head.revoke
+```
+
 ## Architecture Modules
 
 | Module | Responsibility |
